@@ -5,6 +5,7 @@ import React, { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Image from "next/image";
 import { ArrowUpTrayIcon, XMarkIcon } from "@heroicons/react/24/solid";
+import axios from "axios";
 
 interface DropzoneProps {
   files: any[];
@@ -24,6 +25,10 @@ const Dropzone: FC<DropzoneProps> = ({}) => {
 
   const removeFile = (name: string) => {
     setFiles((files) => files.filter((file) => file.name !== name));
+  };
+
+  const removeAllFiles = (name: string) => {
+    setFiles([]);
   };
   const removeRejected = (name: string) => {
     setRejected((files) => files.filter(({ file }) => file.name !== name));
@@ -67,15 +72,21 @@ const Dropzone: FC<DropzoneProps> = ({}) => {
     for (let i = 0; i < files.length; i++) {
       const formData = new FormData();
       files.forEach((file) => formData.append("file", file));
-      formData.append("upload_prese t", "ww1gtckp");
+      formData.append("upload_preset", "ww1gtckp");
 
       const URL = process.env.NEXT_PUBLIC_CLOUDINARY_URL;
-      const data = await fetch(URL, {
-        method: "POST",
-        body: formData,
-      }).then((res) => res.json());
+      try {
+        const { data } = await axios.post(URL, formData);
+        console.log(data);
+      } catch (error) {
+        alert(error.message);
+      }
 
-      console.log(data);
+      // const data = await fetch(URL, {
+      //   method: "POST",
+      //   body: formData,
+      // }).then((res) => res.json());
+      // console.log(data);
     }
   };
 
@@ -95,15 +106,28 @@ const Dropzone: FC<DropzoneProps> = ({}) => {
       </div>
 
       {/* // preview section */}
+      <div className="flex max-h-10 justify-center items-center">
+        <h3 className="title text-lg font-semibold text-slate-800 border-b">
+          Preview
+        </h3>
+        <button
+          type="submit"
+          className="ml-auto mt-1 text-[12px] uppercase tracking-wider font-bold text-neutral-500 border border-purple-400 rounded-md px-3 hover:bg-purple-400 hover:text-white transition-colors"
+        >
+          Upload to Cloudinary
+        </button>
+        <button
+          onClick={removeAllFiles}
+          className="ml-auto mt-1 text-[12px] uppercase tracking-wider font-bold text-neutral-500 border border-purple-400 rounded-md px-3 hover:bg-purple-400 hover:text-white transition-colors"
+        >
+          Remove all files
+        </button>
+      </div>
+
       <h3 className="title text-lg font-semibold text-neutral-600 mt-10 border-b pb-3">
         Accepted Files
       </h3>
-      <button
-        type="submit"
-        className="ml-auto mt-1 text-[12px] uppercase tracking-wider font-bold text-neutral-500 border border-purple-400 rounded-md px-3 hover:bg-purple-400 hover:text-white transition-colors"
-      >
-        Upload to Cloudinary
-      </button>
+
       <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-10">
         {files.map((file) => (
           <li key={file.name} className="relative h-32 rounded-md shadow-lg">
