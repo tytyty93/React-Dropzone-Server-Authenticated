@@ -1,11 +1,12 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import React, { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Image from "next/image";
 import { ArrowUpTrayIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import axios from "axios";
+import { getSignature, saveToDatabase } from "../lib/cloudinary";
 
 interface DropzoneProps {
   files: any[];
@@ -13,10 +14,18 @@ interface DropzoneProps {
   file: {
     name: string;
   };
+  endpoint: string;
 }
 
 interface RemoveFile {
   name: string;
+}
+interface IActionType {
+  (
+    NEXT_PUBLIC_CLOUDINARY_API_KEY: string,
+    NEXT_PUBLIC_CLOUDINARY_UPLOAD_URL: string,
+    timestamp: number
+  ): Promise<any>;
 }
 
 const Dropzone: FC<DropzoneProps> = ({}) => {
@@ -36,7 +45,7 @@ const Dropzone: FC<DropzoneProps> = ({}) => {
 
   const onDrop = useCallback(
     (acceptedFiles: never[], rejectedFiles: never[]) => {
-      // Do something with the files
+      // Creating a preview of the file when user has dropped a file
       if (acceptedFiles?.length) {
         setFiles((previousFiles) => [
           ...previousFiles,
@@ -61,37 +70,82 @@ const Dropzone: FC<DropzoneProps> = ({}) => {
       "image/*": [],
     },
     maxSize: 1024 * 1000,
+    maxFiles: 4,
     onDrop,
   });
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  useEffect(() => {
+    // Revoke the data uris to avoid memory leaks
+    return () => files.forEach((file) => URL.revokeObjectURL(file.preview));
+  }, [files]);
 
-    if (!files?.length) return;
-    // Pushing each images to cloudinary
-    for (let i = 0; i < files.length; i++) {
-      const formData = new FormData();
-      files.forEach((file) => formData.append("file", file));
-      formData.append("upload_preset", "ww1gtckp");
+  // const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  //   e.preventDefault();
 
-      const URL = process.env.NEXT_PUBLIC_CLOUDINARY_URL;
-      try {
-        const { data } = await axios.post(URL, formData);
-        console.log(data);
-      } catch (error) {
-        alert(error.message);
-      }
+  //   if (!files?.length) return;
+  //   // Pushing each images to cloudinary
+  //   for (let i = 0; i < files.length; i++) {
+  //     const formData = new FormData();
+  //     files.forEach((file) => formData.append("file", file));
+  //     formData.append("upload_preset", "ww1gtckp");
 
-      // const data = await fetch(URL, {
-      //   method: "POST",
-      //   body: formData,
-      // }).then((res) => res.json());
-      // console.log(data);
+  //     const URL = process.env.NEXT_PUBLIC_CLOUDINARY_URL;
+  //     try {
+  //       const { data } = await axios.post(URL, formData);
+  //       console.log(data);
+  //     } catch (error) {
+  //       alert(error.message);
+  //     }
+
+  // const data = await fetch(URL, {
+  //   method: "POST",
+  //   body: formData,
+  // }).then((res) => res.json());
+  // console.log(data);
+  //   }
+  // };
+
+  const action = async (): Promise<any> => {
+    // Getting only 1 file, can make it a loop to upload more
+    const file = files[0];
+    if (!file) return;
+
+    // get a signature using server action
+    const { timestamp, signature } = await getSignature();
+
+    // upload to cloudinary using the signature
+    const formData = new FormData();
+
+    formData.append("file", file);
+    formData.append("api_key", process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY);
+    formData.append("signature", signature);
+    formData.append("timestamp", timestamp);
+    formData.append("folder", "next");
+
+    const endpoint = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_URL;
+    console.log("formdata", formData);
+    // const data = await fetch(endpoint, {
+    //   method: "POST",
+    //   body: formData,
+    // }).then((res) => res.json());
+
+    try {
+      // Uploading to cloudinary
+      const { data } = await axios.post(endpoint, formData);
+      console.log(data);
+      // Writing to database using server actions
+      await saveToDatabase({
+        version: data?.version,
+        signature: data?.signature,
+        public_id: data?.public_id,
+      });
+    } catch (error: any) {
+      alert(error.message);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form action={action}>
       <div
         {...getRootProps({
           className: "border-2 p-20",
